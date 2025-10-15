@@ -1,23 +1,47 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from uuid import uuid4
-import os
-import shutil
-import chromadb
+import os, shutil, chromadb
 from openai import OpenAI
 
-# === CONFIGURAZIONE APP ===
 app = FastAPI(title="Unicardealer Service Tech Assistant")
 
-# === CORS ===
+# ✅ Imposta CORS per tutte le origini
+origins = [
+    "https://service-assistant-frontend.vercel.app",  # frontend pubblico
+    "https://service-admin-frontend.vercel.app",      # admin
+    "http://localhost:3000",                          # per test locali
+    "*"                                                # fallback
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # oppure ["https://service-assistant-frontend.vercel.app"]
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ✅ Middleware di emergenza per aggiungere CORS anche sugli errori
+@app.middleware("http")
+async def add_cors_on_error(request: Request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        response = JSONResponse({"detail": str(e)}, status_code=500)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
+
+
+
+
+
+
+
 
 # === CARTELLA PDF ===
 PDF_FOLDER = "uploaded_pdfs"
