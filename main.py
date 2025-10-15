@@ -36,7 +36,7 @@ def health_check():
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), admin_token: str = Form(...)):
-    if admin_token != os.getenv("ADMIN_TOKEN", "admin123"):
+    if admin_token != os.getenv("ADMIN_TOKEN", "unicardealer_admin_2025"):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
 
     file_id = str(uuid4())
