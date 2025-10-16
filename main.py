@@ -2,28 +2,27 @@ from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os, shutil
-from openai import OpenAI
 from uuid import uuid4
+from openai import OpenAI
 import chromadb
 
-# === CONFIG ===
 app = FastAPI(title="Unicardealer Service Tech Assistant")
 
-# ✅ Imposta il dominio frontend (oppure "*" solo per test)
-origins = [
-    "https://service-assistant-frontend.vercel.app",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
-
+# === CORS ===
+origins = ["*"]  # o metti il tuo dominio frontend, es: "https://service-assistant-frontend.vercel.app"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # importante per Render
 )
+
+
+# === CONFIG ===
+app = FastAPI(title="Unicardealer Service Tech Assistant")
+
+
 
 # === INIZIALIZZA CHROMA ===
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
