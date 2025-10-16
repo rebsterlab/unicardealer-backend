@@ -1,28 +1,29 @@
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import os, shutil
-from uuid import uuid4
+import os
 from openai import OpenAI
+from uuid import uuid4
+import shutil
 import chromadb
-
-app = FastAPI(title="Unicardealer Service Tech Assistant")
-
-# === CORS ===
-origins = ["*"]  # o metti il tuo dominio frontend, es: "https://service-assistant-frontend.vercel.app"
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 
 # === CONFIG ===
 app = FastAPI(title="Unicardealer Service Tech Assistant")
 
+# Dominio del frontend admin e user (aggiungili qui)
+origins = [
+    "https://frontend-admin-five-psi.vercel.app",
+    "https://frontend-user-seven.vercel.app",  # se hai anche quello
+    "http://localhost:3000",                   # utile per test locale
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],     # <-- Importante
+    allow_headers=["*"],     # <-- Importante
+)
 
 # === INIZIALIZZA CHROMA ===
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -39,12 +40,13 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 def health_check():
     return {"status": "ok"}
 
-# === UPLOAD PDF ===
+@app.options("/{rest_of_path:path}")
+def preflight_handler(rest_of_path: str):
+    """Gestisce manualmente le richieste OPTIONS per i CORS"""
+    return JSONResponse({"ok": True})
+
 @app.post("/upload")
-async def upload_pdf(
-    file: UploadFile = File(...),
-    admin_token: str = Form(...)
-):
+async def upload_pdf(file: UploadFile = File(...), admin_token: str = Form(...)):
     if admin_token != os.getenv("ADMIN_TOKEN", "unicardealer_admin_2025"):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
 
@@ -55,24 +57,19 @@ async def upload_pdf(
 
     return {"message": "PDF caricato con successo", "file_id": file_id}
 
-# === LISTA PDF ===
 @app.get("/list_pdfs")
 def list_pdfs():
     pdfs = [f for f in os.listdir(PDF_FOLDER) if f.endswith(".pdf")]
     return {"pdfs": pdfs}
 
-# === CHAT ===
 @app.post("/chat")
 async def chat(message: str = Form(...)):
     try:
-        prompt = (
-            f"L'utente ha chiesto: '{message}'. "
-            "Rispondi come un esperto tecnico di assistenza e diagnostica auto."
-        )
+        prompt = f"L'utente ha chiesto: '{message}'. Rispondi in modo professionale e tecnico, come un assistente esperto di assistenza meccanica e diagnostica auto."
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Sei Unicardealer Service Tech Assistant, esperto meccanico."},
+                {"role": "system", "content": "Sei Unicardealer Service Tech Assistant, esperto tecnico meccanico."},
                 {"role": "user", "content": prompt}
             ]
         )
