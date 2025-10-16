@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
@@ -10,19 +10,20 @@ import chromadb
 # === CONFIG ===
 app = FastAPI(title="Unicardealer Service Tech Assistant")
 
-# Dominio del frontend admin e user (aggiungili qui)
+# 👇 Domini autorizzati
 origins = [
     "https://frontend-admin-five-psi.vercel.app",
-    "https://frontend-user-seven.vercel.app",  # se hai anche quello
-    "http://localhost:3000",                   # utile per test locale
+    "https://frontend-user-seven.vercel.app",
+    "http://localhost:3000",
 ]
 
+# 👇 Middleware CORS universale
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],     # <-- Importante
-    allow_headers=["*"],     # <-- Importante
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # === INIZIALIZZA CHROMA ===
@@ -36,14 +37,24 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 PDF_FOLDER = "uploaded_pdfs"
 os.makedirs(PDF_FOLDER, exist_ok=True)
 
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
-@app.options("/{rest_of_path:path}")
-def preflight_handler(rest_of_path: str):
-    """Gestisce manualmente le richieste OPTIONS per i CORS"""
-    return JSONResponse({"ok": True})
+
+# 👇 Gestisce tutte le richieste preflight (OPTIONS)
+@app.options("/{path_name:path}")
+def preflight_handler(path_name: str):
+    return JSONResponse(
+        content={"ok": True},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...), admin_token: str = Form(...)):
@@ -55,25 +66,46 @@ async def upload_pdf(file: UploadFile = File(...), admin_token: str = Form(...))
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    return {"message": "PDF caricato con successo", "file_id": file_id}
+    return JSONResponse(
+        {"message": "PDF caricato con successo", "file_id": file_id},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
 
 @app.get("/list_pdfs")
 def list_pdfs():
     pdfs = [f for f in os.listdir(PDF_FOLDER) if f.endswith(".pdf")]
-    return {"pdfs": pdfs}
+    return JSONResponse(
+        {"pdfs": pdfs},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
 
 @app.post("/chat")
 async def chat(message: str = Form(...)):
     try:
-        prompt = f"L'utente ha chiesto: '{message}'. Rispondi in modo professionale e tecnico, come un assistente esperto di assistenza meccanica e diagnostica auto."
+        prompt = (
+            f"L'utente ha chiesto: '{message}'. "
+            f"Rispondi in modo professionale e tecnico, come un assistente esperto di assistenza meccanica e diagnostica auto."
+        )
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Sei Unicardealer Service Tech Assistant, esperto tecnico meccanico."},
-                {"role": "user", "content": prompt}
-            ]
+                {
+                    "role": "system",
+                    "content": "Sei Unicardealer Service Tech Assistant, esperto tecnico meccanico.",
+                },
+                {"role": "user", "content": prompt},
+            ],
         )
         response_text = completion.choices[0].message.content
-        return {"response": response_text}
+        return JSONResponse(
+            {"response": response_text},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse(
+            {"error": str(e)},
+            status_code=500,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
